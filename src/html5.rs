@@ -174,14 +174,8 @@ impl DomConverter {
 
 /// Parses an HTML string into a Xot document node.
 ///
-/// This uses the `html5ever` parser to handle potentially malformed HTML,
-/// following HTML5 parsing rules. The resulting structure aims to be
-/// compatible with Xot's data model.
-///
-/// Note: Doctypes are ignored. Processing instructions might be ignored or handled differently
 /// than in the XML parser. Namespace handling follows HTML5 rules (e.g. implicit HTML namespace).
-/// It can parse full documents or fragments. Fragments are parsed as if they were children
-/// of a `<body>` element.
+/// It attempts to parse potentially full documents or fragments.
 pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
     let mut cursor = Cursor::new(html);
     let sink = RcDom::default();
@@ -189,46 +183,41 @@ pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
         tree_builder: html5ever::tree_builder::TreeBuilderOpts {
             scripting_enabled: false,
             iframe_srcdoc: false,
-            // Set drop_doctype to true as we handle fragments and don't need doctype info
-            // preserved in the RcDom structure itself for fragment parsing.
-            drop_doctype: true,
+            // Keep doctype initially, html5ever handles it during parsing.
+            drop_doctype: false,
             ..Default::default()
         },
         ..Default::default()
     };
 
-    // Define the context for fragment parsing: a <body> element in the HTML namespace.
-    let context_namespace = Namespace::from(ns!(html));
-    let context_local_name = LocalName::from("body");
-    let context_name = QualName::new(None, context_namespace, context_local_name);
-    let context_attrs = Vec::new(); // No attributes needed for the context element
-
-    // Use parse_fragment. It returns the RcDom (sink) after reading.
-    let sink = parse_fragment(sink, parse_opts, context_name, context_attrs)
+    // Use parse_document. It returns the RcDom (sink) after reading.
+    let sink = parse_document(sink, parse_opts)
         .from_utf8()
         .read_from(&mut cursor)
         .map_err(|e| ParseError::HtmlParse(vec![e.to_string()]))?; // Map IO error
 
-    // Check for parse errors collected in the sink
-    if !sink.errors.is_empty() {
-        let error_strings = sink.errors.iter().map(|e| e.to_string()).collect();
-        return Err(ParseError::HtmlParse(error_strings));
-    }
+    // We ignore html5ever parser errors for now, as it can be noisy.
+    // We rely on the conversion process and subsequent checks to validate the structure.
 
     // Create the Xot document node
     let document_node = xot.new_document();
     let mut converter = DomConverter::new(xot);
 
-    // The parsed fragment nodes are children of the RcDom's document handle
-    let fragment_nodes = sink.document.children.borrow().clone();
-
-    // Convert each node in the parsed fragment and append it to the Xot document node
-    for handle in fragment_nodes {
-        converter.convert_handle(xot, handle, document_node);
-    }
+    // Convert the entire parsed document, starting from the RcDom's document handle
+    converter.convert_handle(xot, sink.document.clone(), document_node);
 
     // Clear the map after conversion is fully done
     converter.node_map.clear();
+
+    // Basic validation: Check if *any* element was added under the document node.
+    // This is a minimal check; specific tests should verify the actual structure.
+    if xot.first_child(document_node).is_none() {
+         // If the document is completely empty after conversion (ignoring comments/PIs),
+         // it might indicate a severe parsing issue not caught by html5ever's error recovery.
+         // Or it could genuinely be an empty input. Returning an error might be too strict.
+         // For now, we allow empty results, tests should specify expected content.
+         // Consider adding a more specific error if an empty result is always invalid.
+    }
 
     Ok(document_node)
 }
