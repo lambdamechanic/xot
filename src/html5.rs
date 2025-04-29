@@ -130,10 +130,11 @@ impl DomConverter {
                 let namespace_id = self.get_or_add_namespace_id(xot, &StrTendril::from(&*name.ns)); // Use xot parameter
                 let name_id = xot.add_name_ns(&name.local, namespace_id); // Use xot parameter
                 let element_node = xot.new_element(name_id); // Use xot parameter
-                // DON'T append element_node to parent_xot_node yet.
+                // Append the element node to the parent FIRST.
+                xot.append(parent_xot_node, element_node).unwrap();
 
                 // If this is the html element at the document root, add the default namespace
-                // BEFORE appending the element node to its parent.
+                // AFTER appending the element node to its parent, but before adding attributes/children.
                 if name.local.as_ref() == "html" && namespace_id == self.namespace_ids[&StrTendril::from(HTML_NS)] && xot.value_type(parent_xot_node) == crate::ValueType::Document {
                     let html_ns = self.namespace_ids[&StrTendril::from(HTML_NS)];
                     let namespace_value = crate::xmlvalue::Value::Namespace(crate::xmlvalue::Namespace {
@@ -141,12 +142,9 @@ impl DomConverter {
                         namespace_id: html_ns,
                     });
                     let namespace_node = xot.new_node(namespace_value);
-                    // Append namespace to the unattached element_node first.
+                    // Append namespace node to the element_node (which is now attached and empty).
                     xot.append(element_node, namespace_node).expect("Failed to append default namespace to html element");
                 }
-
-                // Now append the element_node (potentially with namespace) to the parent.
-                xot.append(parent_xot_node, element_node).unwrap();
 
                 // Process attributes - Stage 1: Collect data and create IDs
                 let mut collected_attrs = Vec::new();
