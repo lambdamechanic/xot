@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use html5ever::driver::ParseOpts;
 use html5ever::tendril::{StrTendril, TendrilSink};
-// Import parse_fragment, QualName, and namespace constants/types from html5ever
-use html5ever::{parse_fragment, QualName, namespace_url, ns, LocalName, Namespace};
+// Import parse_document and related types from html5ever
+use html5ever::{parse_document, QualName, namespace_url, ns}; // Removed fragment-specific imports
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
 use crate::error::ParseError;
