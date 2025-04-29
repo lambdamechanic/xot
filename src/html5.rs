@@ -30,13 +30,6 @@ struct DomConverter {
     namespace_ids: HashMap<StrTendril, NamespaceId>,
     // Use the pointer to the Rc container as the key
     node_map: HashMap<*const markup5ever_rcdom::Node, Node>, // Map html5ever nodes to Xot nodes
-    // Store pre-added common namespace IDs
-    html_ns_id: NamespaceId,
-    mathml_ns_id: NamespaceId,
-    svg_ns_id: NamespaceId,
-    xlink_ns_id: NamespaceId,
-    xml_ns_id: NamespaceId,
-    xmlns_ns_id: NamespaceId,
 }
 
 impl DomConverter {
@@ -66,12 +59,6 @@ impl DomConverter {
             // xot removed
             namespace_ids,
             node_map: HashMap::new(),
-            html_ns_id,
-            mathml_ns_id,
-            svg_ns_id,
-            xlink_ns_id,
-            xml_ns_id,
-            xmlns_ns_id,
         }
     }
 
@@ -272,6 +259,33 @@ pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
 mod tests {
     use super::*;
     use crate::Xot; // Import Xot for testing
+
+    #[test]
+    fn test_parse_html_simple_fragment() {
+        let mut xot = Xot::new();
+        let html = "<html><body><h1>Simple Success</h1></body></html>";
+        let root = xot.parse_html(html).expect("Failed to parse HTML fragment");
+
+        // html5ever parser puts html elements in the HTML namespace
+        let html_ns = xot.add_namespace("http://www.w3.org/1999/xhtml");
+        let html_name = xot.add_name_ns("html", html_ns);
+        let body_name = xot.add_name_ns("body", html_ns);
+        let h1_name = xot.add_name_ns("h1", html_ns);
+
+        let doc_el = xot.document_element(root).expect("No document element found");
+        assert_eq!(xot.element(doc_el).unwrap().name(), html_name, "Document element should be <html>");
+
+        let body_el = xot.first_child(doc_el).expect("No child found for <html> element");
+        assert_eq!(xot.element(body_el).unwrap().name(), body_name, "First child should be <body>");
+
+        let h1_el = xot.first_child(body_el).expect("No child found for <body> element");
+        assert_eq!(xot.element(h1_el).unwrap().name(), h1_name, "First child should be <h1>");
+
+        let text_node = xot.first_child(h1_el).expect("No child found for <h1> element");
+        assert!(xot.is_text(text_node), "Child of <h1> should be a text node");
+        assert_eq!(xot.text_str(text_node).unwrap(), "Simple Success", "Text content mismatch");
+    }
+
 
     #[test]
     fn test_parse_html_with_doctype() {
