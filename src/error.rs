@@ -38,6 +38,9 @@ pub enum ParseError {
     DuplicateId(String, Span),
     /// xmlparser error
     XmlParser(xmlparser::Error, usize),
+    /// html5ever parsing errors
+    #[cfg(feature = "html5ever")]
+    HtmlParse(Vec<String>),
 }
 
 impl ParseError {
@@ -59,6 +62,8 @@ impl ParseError {
             ParseError::TextAtTopLevel(span) => *span,
             ParseError::DuplicateId(_, span) => *span,
             ParseError::XmlParser(_, position) => Span::new(*position, *position),
+            #[cfg(feature = "html5ever")]
+            ParseError::HtmlParse(_) => Span::new(0, 0), // html5ever doesn't easily provide spans
         }
     }
 }
@@ -195,6 +200,8 @@ impl std::fmt::Display for ParseError {
             ParseError::TextAtTopLevel(_) => write!(f, "Text at top level"),
             ParseError::DuplicateId(s, _) => write!(f, "Duplicate xml:id: {}", s),
             ParseError::XmlParser(e, _position) => write!(f, "Parser error: {}", e),
+            #[cfg(feature = "html5ever")]
+            ParseError::HtmlParse(errors) => write!(f, "HTML parse errors: {:?}", errors),
         }
     }
 }

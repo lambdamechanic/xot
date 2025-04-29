@@ -72,6 +72,8 @@ mod nameaccess;
 mod nodemap;
 pub mod output;
 mod parse;
+#[cfg(feature = "html5ever")]
+mod html5;
 #[cfg(feature = "proptest")]
 pub mod proptest;
 mod serialize;

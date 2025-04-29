@@ -12,6 +12,7 @@ readme = "README.md"
 keywords = ["xml", "tree", "dom"]
 
 [features]
+html5ever = ["dep:html5ever", "dep:markup5ever_rcdom"]
 proptest = ["dep:proptest"]
 serde = ["dep:serde"]
 icu = ["dep:icu"]
@@ -29,6 +30,9 @@ xhtmlchardet = "2.2.0"
 genawaiter = "0.99.1"
 serde = { version = "~1", features = ["derive"], optional = true }
 icu = { version = "~1", optional = true }
+html5ever = { version = "0.27.0", optional = true } # Downgraded to match markup5ever_rcdom
+markup5ever_rcdom = { version = "0.3.0", optional = true }
+
 
 [dev-dependencies]
 insta = { version = "1.21.2" }

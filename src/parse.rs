@@ -557,6 +557,20 @@ impl SpanInfo {
 
 /// ## Parsing
 impl Xot {
+    /// Parse a string containing HTML into a document node using the html5ever parser.
+    ///
+    /// This requires the `html5ever` feature.
+    ///
+    /// Note that this does not retain span information like [`Xot::parse_with_span_info`].
+    /// Error reporting is also different, potentially reporting multiple errors.
+    /// The resulting tree structure aims to be compatible with Xot's model but may
+    /// differ from the XML parser's output due to HTML parsing rules (e.g., implicit
+    /// elements, different namespace handling).
+    #[cfg(feature = "html5ever")]
+    pub fn parse_html(&mut self, html: &str) -> Result<Node, ParseError> {
+        crate::html5::parse_html(self, html)
+    }
+
     /// Parse a string containing XML into a document node. Retain span information.
     ///
     /// This parses the XML source into a Xot tree, and also returns
