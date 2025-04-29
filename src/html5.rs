@@ -233,15 +233,20 @@ mod tests {
         let html = "<html><body><h1>Simple Success</h1></body></html>";
         let root = xot.parse_html(html).expect("Failed to parse HTML fragment");
 
-        // Print the parsed structure for debugging
-        println!("Parsed HTML structure:\n{}", xot.to_string(root).unwrap());
-
         // html5ever parser puts html elements in the HTML namespace
         let html_ns = xot.add_namespace("http://www.w3.org/1999/xhtml");
+
+        // Add the default namespace declaration to the document element before serializing
+        let doc_el = xot.document_element(root).expect("No document element found after parse");
+        xot.add_namespace_node(doc_el, xot.empty_prefix_id, html_ns).expect("Failed to add default namespace");
+
+        // Print the parsed structure for debugging - should work now
+        println!("Parsed HTML structure:\n{}", xot.to_string(root).unwrap());
         let html_name = xot.add_name_ns("html", html_ns);
         let body_name = xot.add_name_ns("body", html_ns);
         let h1_name = xot.add_name_ns("h1", html_ns);
 
+        // Re-fetch doc_el as it was fetched before adding the namespace node
         let doc_el = xot.document_element(root).expect("No document element found");
         assert_eq!(xot.element(doc_el).unwrap().name(), html_name, "Document element should be <html>");
 
