@@ -4,12 +4,12 @@
 use std::collections::HashMap;
 use std::default::Default;
 use std::io::Cursor;
-use std::rc::Rc; // Added Rc import
+use std::rc::Rc;
 
 use html5ever::driver::ParseOpts;
-use html5ever::tendril::{StrTendril, TendrilSink}; // Import TendrilSink trait
-// Removed unused TreeSink import
-use html5ever::parse_document;
+use html5ever::tendril::{StrTendril, TendrilSink};
+use html5ever::{parse_document, parse_fragment, QualName, Attribute}; // Import parse_fragment and related types
+use markup5ever::{namespace_url, ns, LocalName, Namespace}; // Import namespace constants and types
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
 use crate::error::ParseError;
@@ -180,28 +180,34 @@ impl DomConverter {
 ///
 /// Note: Doctypes are ignored. Processing instructions might be ignored or handled differently
 /// than in the XML parser. Namespace handling follows HTML5 rules (e.g. implicit HTML namespace).
+/// It can parse full documents or fragments. Fragments are parsed as if they were children
+/// of a `<body>` element.
 pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
     let mut cursor = Cursor::new(html);
-    let sink = RcDom::default(); // Removed `mut`
+    let sink = RcDom::default();
     let parse_opts = ParseOpts {
-        // Keep html5ever's error reporting
         tree_builder: html5ever::tree_builder::TreeBuilderOpts {
-            drop_doctype: false, // Keep doctype temporarily for potential root element context
             scripting_enabled: false,
             iframe_srcdoc: false,
+            // Set drop_doctype to true as we handle fragments and don't need doctype info
+            // preserved in the RcDom structure itself for fragment parsing.
+            drop_doctype: true,
             ..Default::default()
         },
         ..Default::default()
     };
 
-    // Pass sink directly, not &mut sink
-    // Explicitly type the sink parameter to help the compiler
-    let parse_result = parse_document::<RcDom>(sink, parse_opts)
-        .from_utf8()
-        .read_from(&mut cursor);
+    // Define the context for fragment parsing: a <body> element in the HTML namespace.
+    let context_namespace = Namespace::from(ns!(html));
+    let context_local_name = LocalName::from("body");
+    let context_name = QualName::new(None, context_namespace, context_local_name);
+    let context_attrs = Vec::new(); // No attributes needed for the context element
 
-    // Retrieve the sink back after parsing to check errors and get the DOM
-    let sink = parse_result.unwrap_or_else(|_| RcDom::default()); // Get sink back even on read error
+    // Use parse_fragment instead of parse_document
+    let (sink, fragment) = parse_fragment(sink, parse_opts, context_name, context_attrs)
+        .from_utf8()
+        .read_from(&mut cursor)
+        .map_err(|e| ParseError::HtmlParse(vec![e.to_string()]))?; // Map IO error
 
     if !sink.errors.is_empty() {
         // Convert html5ever errors to strings
@@ -209,48 +215,17 @@ pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
         return Err(ParseError::HtmlParse(error_strings));
     }
 
-    // No need to check parse_result again for read errors, handled above
-
-    let dom = sink;
-    // Create document node first, before converter potentially borrows xot
+    // Create the Xot document node
     let document_node = xot.new_document();
-    let mut converter = DomConverter::new(xot); // Create converter (only borrows xot briefly for init)
+    let mut converter = DomConverter::new(xot);
 
-    // Start conversion from the document handle, passing xot and cloning handle
-    converter.convert_handle(xot, dom.document.clone(), document_node);
-
-    // Check if the document element was created (html5ever might create a document fragment)
-    // This immutable borrow of xot is now fine as converter no longer holds a mutable borrow
-    if xot.first_child(document_node).is_none() {
-        // If no children were added directly under the Xot document,
-        // it might be because html5ever parsed a fragment into the #document-fragment
-        // under the main document. Let's check for that.
-        // Clone handle to avoid use-after-move from the first convert_handle call
-        let doc_handle = dom.document.clone();
-        for child_handle in doc_handle.children.borrow().iter() {
-             if let NodeData::Element { .. } = child_handle.data { // Removed unused `ref name`
-                 // Found an element, likely the root of the fragment. Re-run conversion starting here.
-                 // Clear previous attempt first (though it should be empty).
-                 // This is a bit simplified; a true fragment might have multiple top-level nodes.
-                 converter.node_map.clear(); // Reset map for the new pass
-                 // Create node before calling convert_handle
-                 let new_document_node = xot.new_document(); // Create a fresh document node
-                 converter.convert_handle(xot, child_handle.clone(), new_document_node); // Pass xot
-                 // TODO: Handle multiple top-level fragment nodes if necessary.
-                 return Ok(new_document_node);
-             } else if let NodeData::Text { .. } = child_handle.data {
-                 // Handle top-level text nodes in fragments
-                 converter.node_map.clear();
-                 // Create node before calling convert_handle
-                 let new_document_node = xot.new_document();
-                 converter.convert_handle(xot, child_handle.clone(), new_document_node); // Pass xot
-                 return Ok(new_document_node);
-             }
-             // Ignore comments, doctypes at this level for fragment root finding
-        }
-        // If still no element found, return the empty document node.
+    // Convert each node in the parsed fragment and append it to the Xot document node
+    for handle in fragment {
+        converter.convert_handle(xot, handle, document_node);
     }
 
+    // Clear the map after conversion is fully done
+    converter.node_map.clear();
 
     Ok(document_node)
 }
