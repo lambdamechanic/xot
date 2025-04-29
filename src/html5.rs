@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use html5ever::driver::ParseOpts;
 use html5ever::tendril::{StrTendril, TendrilSink};
-use html5ever::{parse_document, parse_fragment, QualName, Attribute}; // Import parse_fragment and related types
-use markup5ever::{namespace_url, ns, LocalName, Namespace}; // Import namespace constants and types
+// Import parse_fragment, QualName, and namespace constants/types from html5ever
+use html5ever::{parse_fragment, QualName, namespace_url, ns, LocalName, Namespace};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
 use crate::error::ParseError;
@@ -203,14 +203,14 @@ pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
     let context_name = QualName::new(None, context_namespace, context_local_name);
     let context_attrs = Vec::new(); // No attributes needed for the context element
 
-    // Use parse_fragment instead of parse_document
-    let (sink, fragment) = parse_fragment(sink, parse_opts, context_name, context_attrs)
+    // Use parse_fragment. It returns the RcDom (sink) after reading.
+    let sink = parse_fragment(sink, parse_opts, context_name, context_attrs)
         .from_utf8()
         .read_from(&mut cursor)
         .map_err(|e| ParseError::HtmlParse(vec![e.to_string()]))?; // Map IO error
 
+    // Check for parse errors collected in the sink
     if !sink.errors.is_empty() {
-        // Convert html5ever errors to strings
         let error_strings = sink.errors.iter().map(|e| e.to_string()).collect();
         return Err(ParseError::HtmlParse(error_strings));
     }
@@ -219,8 +219,11 @@ pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
     let document_node = xot.new_document();
     let mut converter = DomConverter::new(xot);
 
+    // The parsed fragment nodes are children of the RcDom's document handle
+    let fragment_nodes = sink.document.children.borrow().clone();
+
     // Convert each node in the parsed fragment and append it to the Xot document node
-    for handle in fragment {
+    for handle in fragment_nodes {
         converter.convert_handle(xot, handle, document_node);
     }
 
