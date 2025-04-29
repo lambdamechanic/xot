@@ -259,6 +259,7 @@ mod tests {
         let _doc_el_for_print = xot.document_element(root).expect("No document element found after parse");
         println!("Parsed HTML structure:\n{}", xot.to_string(root).unwrap());
         let html_name = xot.add_name_ns("html", html_ns);
+        let head_name = xot.add_name_ns("head", html_ns); // Add expected head name
         let body_name = xot.add_name_ns("body", html_ns);
         let h1_name = xot.add_name_ns("h1", html_ns);
 
@@ -266,11 +267,30 @@ mod tests {
         let doc_el = xot.document_element(root).expect("No document element found");
         assert_eq!(xot.element(doc_el).unwrap().name(), html_name, "Document element should be <html>");
 
-        let body_el = xot.first_child(doc_el).expect("No child found for <html> element");
-        assert_eq!(xot.element(body_el).unwrap().name(), body_name, "First child should be <body>");
+        // Find head and body elements among children, don't assume order
+        let mut found_head = false;
+        let mut found_body = false;
+        let mut body_el = None; // Store the body element node when found
 
+        for child in xot.children(doc_el) {
+            if xot.is_element(child) {
+                let element = xot.element(child).unwrap();
+                if element.name() == head_name {
+                    found_head = true;
+                } else if element.name() == body_name {
+                    found_body = true;
+                    body_el = Some(child);
+                }
+            }
+        }
+
+        assert!(found_head, "Expected to find a <head> element as child of <html>");
+        assert!(found_body, "Expected to find a <body> element as child of <html>");
+        let body_el = body_el.expect("Body element node was not stored"); // Unwrap the Option
+
+        // Now assert based on the found body_el
         let h1_el = xot.first_child(body_el).expect("No child found for <body> element");
-        assert_eq!(xot.element(h1_el).unwrap().name(), h1_name, "First child should be <h1>");
+        assert_eq!(xot.element(h1_el).unwrap().name(), h1_name, "First child of <body> should be <h1>");
 
         let text_node = xot.first_child(h1_el).expect("No child found for <h1> element");
         assert!(xot.is_text(text_node), "Child of <h1> should be a text node");
