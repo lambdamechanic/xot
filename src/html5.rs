@@ -9,7 +9,7 @@ use std::rc::Rc;
 use html5ever::driver::ParseOpts;
 use html5ever::tendril::{StrTendril, TendrilSink};
 // Import parse_document and related types from html5ever
-use html5ever::{parse_document, QualName, namespace_url, ns}; // Removed fragment-specific imports
+use html5ever::parse_document; // Removed unused imports
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
 use crate::error::ParseError;
@@ -232,6 +232,9 @@ mod tests {
         let mut xot = Xot::new();
         let html = "<html><body><h1>Simple Success</h1></body></html>";
         let root = xot.parse_html(html).expect("Failed to parse HTML fragment");
+
+        // Print the parsed structure for debugging
+        println!("Parsed HTML structure:\n{}", xot.to_string(root).unwrap());
 
         // html5ever parser puts html elements in the HTML namespace
         let html_ns = xot.add_namespace("http://www.w3.org/1999/xhtml");
