@@ -132,6 +132,18 @@ impl DomConverter {
                 let element_node = xot.new_element(name_id); // Use xot parameter
                 xot.append(parent_xot_node, element_node).unwrap(); // Use xot parameter
 
+                // If this is the html element at the document root, add the default namespace
+                if name.local.as_ref() == "html" && namespace_id == self.namespace_ids[&StrTendril::from(HTML_NS)] && xot.value_type(parent_xot_node) == crate::ValueType::Document {
+                    let html_ns = self.namespace_ids[&StrTendril::from(HTML_NS)];
+                    let namespace_value = crate::xmlvalue::Value::Namespace(crate::xmlvalue::Namespace {
+                        prefix_id: xot.empty_prefix_id,
+                        namespace_id: html_ns,
+                    });
+                    let namespace_node = xot.new_node(namespace_value);
+                    // Append directly to the element_node; it's guaranteed to be empty now
+                    xot.append(element_node, namespace_node).expect("Failed to append default namespace to html element");
+                }
+
                 // Process attributes - Stage 1: Collect data and create IDs
                 let mut collected_attrs = Vec::new();
                 for attr in attrs.borrow().iter() {
@@ -236,18 +248,11 @@ mod tests {
         // html5ever parser puts html elements in the HTML namespace
         let html_ns = xot.add_namespace("http://www.w3.org/1999/xhtml");
 
-        // Add the default namespace declaration to the document element before serializing
-        let doc_el = xot.document_element(root).expect("No document element found after parse");
-        // Manually create and append the namespace node
-        let namespace_value = crate::xmlvalue::Value::Namespace(crate::xmlvalue::Namespace {
-            prefix_id: xot.empty_prefix_id,
-            namespace_id: html_ns,
-        });
-        let namespace_node = xot.new_node(namespace_value);
-        xot.append(doc_el, namespace_node).expect("Failed to append namespace node");
-
+        // Namespace declaration is now handled by the converter for the root <html> element.
 
         // Print the parsed structure for debugging - should work now
+        // We need the document element to ensure the namespace was added for serialization
+        let _doc_el_for_print = xot.document_element(root).expect("No document element found after parse");
         println!("Parsed HTML structure:\n{}", xot.to_string(root).unwrap());
         let html_name = xot.add_name_ns("html", html_ns);
         let body_name = xot.add_name_ns("body", html_ns);
