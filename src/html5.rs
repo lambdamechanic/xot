@@ -238,7 +238,14 @@ mod tests {
 
         // Add the default namespace declaration to the document element before serializing
         let doc_el = xot.document_element(root).expect("No document element found after parse");
-        xot.add_namespace_node(doc_el, xot.empty_prefix_id, html_ns).expect("Failed to add default namespace");
+        // Manually create and append the namespace node
+        let namespace_value = crate::xmlvalue::Value::Namespace(crate::xmlvalue::Namespace {
+            prefix_id: xot.empty_prefix_id,
+            namespace_id: html_ns,
+        });
+        let namespace_node = xot.new_node(namespace_value);
+        xot.append(doc_el, namespace_node).expect("Failed to append namespace node");
+
 
         // Print the parsed structure for debugging - should work now
         println!("Parsed HTML structure:\n{}", xot.to_string(root).unwrap());
