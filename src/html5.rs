@@ -193,7 +193,7 @@ impl DomConverter {
 ///
 /// Note: Doctypes are ignored. Processing instructions might be ignored or handled differently
 /// than in the XML parser. Namespace handling follows HTML5 rules (e.g. implicit HTML namespace).
-pub(crate) fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
+pub fn parse_html(xot: &mut Xot, html: &str) -> Result<Node, ParseError> {
     let mut cursor = Cursor::new(html);
     let sink = RcDom::default(); // Removed `mut`
     let parse_opts = ParseOpts {
