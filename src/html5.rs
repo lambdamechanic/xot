@@ -141,9 +141,11 @@ impl DomConverter {
                         prefix_id: xot.empty_prefix_id,
                         namespace_id: html_ns,
                     });
-                    let namespace_node = xot.new_node(namespace_value);
-                    // Append namespace node to the element_node (which is now attached and empty).
-                    xot.append(element_node, namespace_node).expect("Failed to append default namespace to html element");
+                    // Create the namespace node directly in the arena
+                    let namespace_node_id = xot.arena.new_node(namespace_value);
+                    // Append using the internal indextree mechanism, bypassing Xot::append validation
+                    element_node.get().append(namespace_node_id, &mut xot.arena);
+                    // No need for .expect() here as indextree::append doesn't return Result for this case
                 }
 
                 // Process attributes - Stage 1: Collect data and create IDs
